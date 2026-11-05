@@ -1,0 +1,104 @@
+{
+  "task_id": "paper-only-operator-overlay",
+  "bot": "bot-02-risk",
+  "branch": "cursor/paper-only-operator-overlay-2942",
+  "approved_by": "not-reviewed",
+  "approval_note": "No human reviewed this change. approved_by is a non-author marker required by the receipt shape. It is not a RISK CLEAR, a trade approval, or an operational sign-off. Open policy questions stay with coordinator YJ.",
+  "commands": [
+    {
+      "cmd": "uv run ruff check .",
+      "exit_code": 0,
+      "output_tail": "All checks passed!"
+    },
+    {
+      "cmd": "uv run ruff format --check .",
+      "exit_code": 0,
+      "output_tail": "872 files already formatted"
+    },
+    {
+      "cmd": "uv run mypy src/",
+      "exit_code": 0,
+      "output_tail": "Success: no issues found in 224 source files"
+    },
+    {
+      "cmd": "uv run python -m pytest -o addopts= -q tests/config/test_paper_operator_overlay.py tests/risk/test_paper_policy_blocks_entries.py tests/config/test_settings_surface_characterization.py",
+      "exit_code": 0,
+      "output_tail": "16 passed in 0.22s"
+    },
+    {
+      "cmd": "./scripts/check.sh",
+      "exit_code": 0,
+      "output_tail": "PumpGrok repository structure looks healthy."
+    },
+    {
+      "cmd": "uv run python -P ci/gates/check_ownership.py --bot bot-02-risk --files docs/paper-operator-overlay.md src/pumpgrok/cli/backtest.py src/pumpgrok/cli/dispatch.py src/pumpgrok/cli/paper_guard.py src/pumpgrok/cli/verbs_ops.py src/pumpgrok/cli/verbs_state.py src/pumpgrok/cli/wiring.py src/pumpgrok/config/examples/paper-operator.example.toml src/pumpgrok/config/settings.py src/pumpgrok/doctor.py src/pumpgrok/risk/engine/core.py src/pumpgrok/risk/paper_policy.py src/pumpgrok/tools/__init__.py tests/config/test_paper_operator_overlay.py tests/config/test_settings_surface_characterization.py tests/risk/test_paper_policy_blocks_entries.py .receipts/bot-02-risk/paper-only-operator-overlay.json",
+      "exit_code": 0,
+      "output_tail": "G-1 PASS — bot-02-risk: 17 file(s) within owned paths"
+    }
+  ],
+  "claims": [
+    {
+      "claim": "ruff check passes on the repository, including the paper-policy modules.",
+      "evidence_command_index": 0
+    },
+    {
+      "claim": "ruff format --check passes on the repository.",
+      "evidence_command_index": 1
+    },
+    {
+      "claim": "mypy src/ reports no issues in 224 source files.",
+      "evidence_command_index": 2
+    },
+    {
+      "claim": "The offline paper-policy tests and the settings surface pins pass: 16 passed. They load the overlay, refuse desk verbs, and refuse one in-memory buy with no ledger row.",
+      "evidence_command_index": 3
+    },
+    {
+      "claim": "scripts/check.sh passes, including the new ASCII operator note.",
+      "evidence_command_index": 4
+    },
+    {
+      "claim": "Every path in this change, including the receipt, resolves to bot-02-risk.",
+      "evidence_command_index": 5
+    }
+  ],
+  "unverified": [
+    "No human reviewed this receipt. approved_by is not a clearance. Policy questions remain with coordinator YJ.",
+    "The full pytest suite was not run. It contains paper-fill and trade-simulation tests, which this task does not run.",
+    "pumpgrok run, paper, serve, replay, verify, and backtest were not executed as desk cycles. The engaged overlay test calls the CLI entry points and expects config refusal before a cycle.",
+    "No market scan, RPC call, wallet, key, live action, position initialization, or fill was performed.",
+    "B1 is unresolved: virtual USDC was not converted to SOL and paper_equity_sol stays at the package default.",
+    "B4 is unresolved in the supervisor: DailyRollover remains UTC. Entries stay blocked while the policy is engaged.",
+    "B5 is unresolved in safety.score_report: SAFE-4 and SAFE-8 can still be advisory BLIND. That file was not edited.",
+    "B7 remains: no sourced cost model was added, and the schema rejects marking one verified.",
+    "B8 is unresolved in the paper adapter: blind_flatten was not modified and is not authorized.",
+    "B9 remains: pre-migration tokens stay excluded. No separate policy was added.",
+    "B10 remains: no ledger E0 or peak was written or verified.",
+    "engine/analyzer.py CREATOR_SHARE_VETO remains 0.25. The overlay threshold is not read by that constant.",
+    "Package data, Jupiter, and Grok URLs remain in the profile overlays and were not called.",
+    "The branch name does not match the gates.yml acting-bot prefix. The workflow was not changed. Fork pull requests skip that job.",
+    "Doctor exit 0 means settings loaded. It is not operational readiness.",
+    "This checkout does not update the desk computer's clone."
+  ],
+  "files_changed": [
+    "docs/paper-operator-overlay.md",
+    "src/pumpgrok/cli/backtest.py",
+    "src/pumpgrok/cli/dispatch.py",
+    "src/pumpgrok/cli/paper_guard.py",
+    "src/pumpgrok/cli/verbs_ops.py",
+    "src/pumpgrok/cli/verbs_state.py",
+    "src/pumpgrok/cli/wiring.py",
+    "src/pumpgrok/config/examples/paper-operator.example.toml",
+    "src/pumpgrok/config/settings.py",
+    "src/pumpgrok/doctor.py",
+    "src/pumpgrok/risk/engine/core.py",
+    "src/pumpgrok/risk/paper_policy.py",
+    "src/pumpgrok/tools/__init__.py",
+    "tests/config/test_paper_operator_overlay.py",
+    "tests/config/test_settings_surface_characterization.py",
+    "tests/risk/test_paper_policy_blocks_entries.py",
+    ".receipts/bot-02-risk/paper-only-operator-overlay.json"
+  ],
+  "contract_changes": [],
+  "rollback_plan": "Revert this commit with git revert and unset PUMPGROK_CONFIG. Recovery is immediate. Data implications: none, because this change writes no ledger row and no desk state."
+}

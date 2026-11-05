@@ -28,6 +28,7 @@ from pumpgrok.cli.errors import (
     _say,
     _tool_error,
 )
+from pumpgrok.cli.paper_guard import refuse_engaged
 from pumpgrok.cli.promotion import make_promotion_check
 from pumpgrok.cli.validators import _human_by, _mint_approval_id, _utc_now, size_sol_to_lamports
 from pumpgrok.cli.wiring import (
@@ -85,6 +86,7 @@ def _declared_space() -> tuple[dict[str, Any], ...]:
 
 
 def _run(args: argparse.Namespace, settings: Settings) -> int:
+    refuse_engaged(settings, "run")
     gate = LiveGate(
         mode=settings.effective_mode,
         environ=os.environ,
@@ -177,12 +179,15 @@ def _skip_cycle(source: Path, settings: Settings) -> int:
 def _paper(args: argparse.Namespace, settings: Settings) -> int:
     """Paper trade: seat authorization first, then refuse with code ``unavailable``.
 
+    An engaged operator policy returns before that path. No order is built.
+
     The forbidden-owner guard and the registry grant check (``find``) run before
     the refusal, so forbidden and operator seats keep their existing codes. Only a
     seat allowed to trade reaches the refusal. No tool is invoked and nothing is
     written: no curve price source is bound on the CLI and the RPC curve layout is
     ASSUMED.
     """
+    refuse_engaged(settings, "paper")
     verb = f"paper {args.cmd}"
     refused = _refuse_forbidden_seat(args.seat, verb)
     if refused is not None:
@@ -236,6 +241,7 @@ def _halt_clear(by: str, reason: str, settings: Settings) -> int:
             ids=IdFactory(clock, make_rng(settings.replay.seed)),
             clock=clock,
             limits=settings.limits,
+            paper_policy=settings.paper_policy,
         )
         approval = ApprovalRecord(
             id=_mint_approval_id(),
@@ -281,6 +287,7 @@ def _resume(target: str, by: str, settings: Settings) -> int:
 
 
 def _state(args: argparse.Namespace, settings: Settings) -> int:
+    refuse_engaged(settings, "state")
     verb = f"state {args.cmd}"
     if args.cmd == "resume":
         # Human-only (R22): the supervisor folds the note in 04-08. The
@@ -343,6 +350,7 @@ def _killswitch_clear(by: str, reason: str, settings: Settings) -> int:
 
 
 def _killswitch(args: argparse.Namespace, settings: Settings) -> int:
+    refuse_engaged(settings, "killswitch")
     verb = f"killswitch {args.cmd}"
     if args.cmd == "clear":
         # Human-only (R22): the ledger KillSwitchCleared + ApprovalRecord.
@@ -375,6 +383,7 @@ def _killswitch(args: argparse.Namespace, settings: Settings) -> int:
 
 def _ticket_verb(args: argparse.Namespace, settings: Settings) -> int:
     """Allocate and list paper tickets over the canonical ledger (R29, R33)."""
+    refuse_engaged(settings, "ticket")
     verb = f"ticket {args.cmd}"
     store = LedgerStore(str(PAPER_LEDGER_PATH))
     try:

@@ -61,6 +61,12 @@ from pumpgrok.config.sections.engine import (
 from pumpgrok.config.sections.ops import HealthSettings, NotifySettings, OpsSettings
 from pumpgrok.core.risk_budget import RiskBudget
 from pumpgrok.risk.limits import EngineLimits
+from pumpgrok.risk.paper_policy import (
+    PaperDeskPolicy,
+    bind_paper_policy,
+    operator_overlay_problems,
+    reset_paper_policy,
+)
 
 # The section classes live in config/sections. They stay importable from this module because the
 # engine, backtest, replay and test modules import them from pumpgrok.config.settings by name.
@@ -167,6 +173,7 @@ class Settings(BaseSettings):
     ops: OpsSettings = Field(default_factory=OpsSettings)
     notify: NotifySettings = Field(default_factory=NotifySettings)
     health: HealthSettings = Field(default_factory=HealthSettings)
+    paper_policy: PaperDeskPolicy = Field(default_factory=PaperDeskPolicy)
 
     @property
     def effective_mode(self) -> Mode:
@@ -412,9 +419,17 @@ def load_settings(**kwargs: Any) -> Settings:
     if problems:
         raise ConfigError(problems)
     try:
-        return Settings(**kwargs)
+        settings = Settings(**kwargs)
     except ValidationError as exc:
         raise ConfigError(_format_validation_error(exc)) from exc
+    # Bind before the cross-section check so a nested read sees this policy,
+    # then replace the binding only when the merged settings are accepted.
+    token = bind_paper_policy(settings.paper_policy)
+    problems = operator_overlay_problems(settings)
+    if problems:
+        reset_paper_policy(token)
+        raise ConfigError(problems)
+    return settings
 
 
 def health_port(settings: Settings, *, once: bool = False, replay: str | None = None) -> int:

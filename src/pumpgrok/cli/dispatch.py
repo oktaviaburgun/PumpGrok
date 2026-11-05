@@ -21,6 +21,7 @@ from pumpgrok.config.settings import (
     load_settings,
     refuse_cli_secrets,
 )
+from pumpgrok.core.errors import CorruptState
 from pumpgrok.ledger.store import LedgerInconsistent
 from pumpgrok.logging.json import setup_logging
 from pumpgrok.replay.fixtures import CorruptFixture
@@ -85,6 +86,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except LedgerInconsistent as exc:
         _say(sys.stderr, f"ledger inconsistent: {exc.message}")
         return EXIT_LEDGER
+    except CorruptState as exc:
+        if exc.fields.get("paper_policy"):
+            _say(sys.stderr, f"config error: {exc.message}")
+            return EXIT_CONFIG
+        raise
 
 
 if __name__ == "__main__":

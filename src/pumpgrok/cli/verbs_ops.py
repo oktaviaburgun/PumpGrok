@@ -17,6 +17,7 @@ from typing import Any
 
 from pumpgrok.cli.codes import EXIT_CONFIG, EXIT_OK
 from pumpgrok.cli.errors import UsageError, _not_implemented, _say
+from pumpgrok.cli.paper_guard import refuse_engaged
 from pumpgrok.cli.validators import (
     _human_by,
     _jsonable,
@@ -48,6 +49,7 @@ def _doctor_verb(_args: argparse.Namespace, settings: Settings) -> int:
 
 
 def _live_verb(args: argparse.Namespace, settings: Settings) -> int:
+    refuse_engaged(settings, "live")
     if args.cmd == "confirm":
         return _live_confirm(args, settings)
     return _not_implemented(f"live {args.cmd}")
@@ -177,6 +179,7 @@ def _verify_verb(args: argparse.Namespace, settings: Settings) -> int:
     ``var/replay/<dataset>/ledger.sqlite``, prints the ``events.hash`` of the
     chain, and exits 0 only when the chain verifies CONSISTENT.
     """
+    refuse_engaged(settings, "verify")
     raw = str(args.fixture)
     candidate = Path(raw)
     if candidate.is_dir():

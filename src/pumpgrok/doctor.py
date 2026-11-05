@@ -16,6 +16,7 @@ import urllib.request
 from dataclasses import dataclass
 
 from pumpgrok.config.settings import Settings, current_profile
+from pumpgrok.risk.paper_policy import paper_policy_report_lines
 
 SUBSYSTEMS: tuple[tuple[str, str], ...] = (
     ("settings", "pumpgrok.config.settings"),
@@ -95,6 +96,7 @@ def doctor_report(settings: Settings) -> list[str]:
     present = sum(1 for status in statuses if status.present)
     absent = len(statuses) - present
     lines = [f"info  mode={settings.effective_mode} profile={current_profile()}"]
+    lines.extend(paper_policy_report_lines(settings.paper_policy))
     lines.extend(status.line() for status in statuses)
     port = settings.health.port
     if port <= 0:
