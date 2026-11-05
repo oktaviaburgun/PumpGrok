@@ -23,7 +23,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from fractions import Fraction
 from typing import Literal
 
-from pumpgrok.risk.paper_policy import PaperCostModel, PaperDeskPolicy
+from pumpgrok.replay.clock import format_ts_utc
+from pumpgrok.risk.paper_policy import PaperCostModel, PaperDeskPolicy, current_paper_policy
 
 VIRTUAL_USDC_MICRO = 1_000_000
 BANGKOK = timezone(timedelta(hours=7), name="Asia/Bangkok")
@@ -157,6 +158,18 @@ def configured_starting_micro(policy: PaperDeskPolicy) -> int:
 def bangkok_day(epoch_s: float) -> str:
     """Asia/Bangkok calendar day of an epoch second, ``YYYY-MM-DD``."""
     return datetime.fromtimestamp(epoch_s, BANGKOK).date().isoformat()
+
+
+def deployment_day(epoch_s: float) -> str:
+    """Day key for supervisor rollover.
+
+    Engaged paper deployment uses the Asia/Bangkok civil date. Every other
+    posture, including the package and live defaults, keeps the UTC date.
+    """
+    policy = current_paper_policy()
+    if policy.engaged and policy.halt_timezone == "Asia/Bangkok":
+        return bangkok_day(epoch_s)
+    return format_ts_utc(epoch_s)[:10]
 
 
 def initialization_prerequisites() -> tuple[str, ...]:

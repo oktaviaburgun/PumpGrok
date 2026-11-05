@@ -19,7 +19,7 @@ from pumpgrok.ledger.reducer import initial_state, reduce
 from pumpgrok.ledger.store import LedgerStore
 from pumpgrok.ledger.views import equity_lamports
 from pumpgrok.replay.clock import format_ts_utc
-from pumpgrok.risk.engine import utc_day
+from pumpgrok.risk.paper_accounting import deployment_day
 from pumpgrok.supervisor.health import (
     HEALTH_FILE_INTERVAL_S,
     build_status,
@@ -62,10 +62,11 @@ def cycle_timeout_s(cadence_s: float) -> float:
 
 
 def rollover_key(day_utc: str) -> str:
-    """Idempotency per UTC day: one ``DailyRollover`` per day (D6).
+    """Idempotency per deployment day: one ``DailyRollover`` per day (D6).
 
-    Same domain-separated shape as ``risk.engine.halt_key`` so a replayed
-    day never appends a second rollover row.
+    The day string is UTC unless the engaged paper policy selects
+    Asia/Bangkok (``deployment_day``). Same domain-separated shape as
+    ``risk.engine.halt_key`` so a replayed day never appends a second row.
     """
     return hashlib.sha256(f"DailyRollover|{day_utc}".encode()).hexdigest()
 
@@ -291,14 +292,15 @@ class Supervisor:
                 log.warning("health.json write failed: %s", exc)
 
     def _emit_rollover(self, now: float) -> None:
-        """Append one ``DailyRollover`` per UTC day, including the first day seen.
+        """Append one ``DailyRollover`` per deployment day, including the first day seen.
 
-        Called at the top of every tick, before any seat runs, so the baseline is
-        the account's equity at the day's start. ``run_once_replay`` allows exactly
-        these day-keyed rows (5.2 conflict): seat cycles stay read-only while the
-        ledger still records one rollover per UTC day (D6).
+        The day comes from ``deployment_day``: Asia/Bangkok while the paper
+        policy is engaged, UTC otherwise. Called at the top of every tick,
+        before any seat runs. ``run_once_replay`` allows exactly these
+        day-keyed rows (5.2 conflict): seat cycles stay read-only while the
+        ledger still records one rollover per day (D6).
         """
-        day = utc_day(now)
+        day = deployment_day(now)
         if self._last_rollover_day == day:
             return
         try:
@@ -346,7 +348,9 @@ class Supervisor:
             source = str(events[0]["source"])
         else:
             source = self._source
-        state = initial_state(source=source, initial_equity_lamports=initial, day_utc=utc_day(now))
+        state = initial_state(
+            source=source, initial_equity_lamports=initial, day_utc=deployment_day(now)
+        )
         for event in events:
             state = reduce(state, event)
         return int(equity_lamports(state))

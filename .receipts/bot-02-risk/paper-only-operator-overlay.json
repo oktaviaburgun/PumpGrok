@@ -13,7 +13,7 @@
     {
       "cmd": "uv run ruff format --check .",
       "exit_code": 0,
-      "output_tail": "874 files already formatted"
+      "output_tail": "875 files already formatted"
     },
     {
       "cmd": "uv run mypy src/",
@@ -21,9 +21,9 @@
       "output_tail": "Success: no issues found in 225 source files"
     },
     {
-      "cmd": "uv run python -m pytest -o addopts= -q tests/config/test_paper_operator_overlay.py tests/risk/test_paper_policy_blocks_entries.py tests/risk/test_paper_accounting.py tests/config/test_settings_surface_characterization.py",
+      "cmd": "uv run python -m pytest -o addopts= -q tests/risk/test_deployment_wiring.py tests/risk/test_paper_accounting.py tests/config/test_paper_operator_overlay.py tests/risk/test_paper_policy_blocks_entries.py tests/config/test_settings_surface_characterization.py",
       "exit_code": 0,
-      "output_tail": "23 passed in 0.24s"
+      "output_tail": "26 passed in 0.23s"
     },
     {
       "cmd": "./scripts/check.sh",
@@ -31,9 +31,9 @@
       "output_tail": "PumpGrok repository structure looks healthy."
     },
     {
-      "cmd": "uv run python -P ci/gates/check_ownership.py --bot bot-02-risk --files docs/paper-operator-overlay.md src/pumpgrok/cli/backtest.py src/pumpgrok/cli/dispatch.py src/pumpgrok/cli/paper_guard.py src/pumpgrok/cli/verbs_ops.py src/pumpgrok/cli/verbs_state.py src/pumpgrok/cli/wiring.py src/pumpgrok/config/examples/paper-operator.example.toml src/pumpgrok/config/settings.py src/pumpgrok/doctor.py src/pumpgrok/risk/engine/core.py src/pumpgrok/risk/paper_accounting.py src/pumpgrok/risk/paper_policy.py src/pumpgrok/tools/__init__.py tests/config/test_paper_operator_overlay.py tests/config/test_settings_surface_characterization.py tests/risk/test_paper_accounting.py tests/risk/test_paper_policy_blocks_entries.py .receipts/bot-02-risk/paper-only-operator-overlay.json",
-      "exit_code": 0,
-      "output_tail": "G-1 PASS — bot-02-risk: 19 file(s) within owned paths"
+      "cmd": "uv run python -P ci/gates/check_ownership.py --bot bot-02-risk --files docs/paper-operator-overlay.md src/pumpgrok/risk/paper_accounting.py src/pumpgrok/supervisor/scheduler/supervisor.py src/pumpgrok/tools/safety/score_report.py tests/risk/test_deployment_wiring.py .receipts/bot-02-risk/paper-only-operator-overlay.json",
+      "exit_code": 1,
+      "output_tail": "G-1 FAIL — bot-02-risk FOREIGN src/pumpgrok/supervisor/scheduler/supervisor.py (owned by bot-00-chief) FOREIGN src/pumpgrok/tools/safety/score_report.py (owned by bot-05-rug)"
     }
   ],
   "claims": [
@@ -50,7 +50,7 @@
       "evidence_command_index": 2
     },
     {
-      "claim": "Offline paper-policy and virtual-USDC accounting tests pass: 23 passed. They use TEST DATA fixtures, refuse execution, and write no fill.",
+      "claim": "Targeted offline tests pass: 26 passed, including deployment wiring for Bangkok rollover and the strict safety scorer. They write no fill.",
       "evidence_command_index": 3
     },
     {
@@ -58,8 +58,9 @@
       "evidence_command_index": 4
     },
     {
-      "claim": "Every path in this change, including the receipt, resolves to bot-02-risk.",
-      "evidence_command_index": 5
+      "claim": "G-1 for bot-02-risk fails on the two wired call sites: supervisor.py is owned by bot-00-chief and score_report.py is owned by bot-05-rug. Ownership was not reassigned.",
+      "evidence_command_index": 5,
+      "expects_failure": true
     }
   ],
   "unverified": [
@@ -68,8 +69,8 @@
     "pumpgrok run, paper, serve, replay, verify, and backtest were not executed as desk cycles. Engaged CLI entry points are expected to refuse before a cycle.",
     "No market scan, RPC call, wallet, key, live action, position initialization, or fill was performed.",
     "Virtual-USDC accounting is in memory. It does not convert 1000 virtual USDC into the package SOL default. The SOL ledger path is unchanged.",
-    "The Bangkok day clock and latched halt live in the virtual-USDC book. The supervisor DailyRollover emitter is still UTC and was not edited.",
-    "safety_verdict treats missing and blind evidence as KILL. safety.score_report was not edited and still has its advisory path.",
+    "Supervisor._emit_rollover calls deployment_day. Engaged paper policy uses Asia/Bangkok. Disengaged and live defaults stay UTC. utc_day for SOL halt keys was not changed.",
+    "run_score_report calls safety_verdict while the paper policy is engaged. Missing and BLIND required checks force KILL. The disengaged scorer keeps the advisory exception.",
     "The cost-model schema accepts a complete sourced model. The shipped example leaves verified false. No venue cost source was supplied.",
     "blind_flatten and slippage above 200 bps are refused at RiskEngine.check. The paper adapter file was not edited.",
     "Exit proposals stay at package defaults. That is waiting on a desk-agent decision and is not itself a configuration failure.",
@@ -78,6 +79,7 @@
     "engine/analyzer.py CREATOR_SHARE_VETO remains 0.25.",
     "Package data, Jupiter, and Grok URLs remain in the profile overlays and were not called.",
     "Configuration ready, data ready, and execution ready are separate. The shipped overlay is configuration ready only.",
+    "G-1 does not pass for bot-02-risk on this follow-up because the rollover and scorer call sites belong to other seats. The gate was not weakened and ownership.yaml was not edited.",
     "The branch name does not match the gates.yml acting-bot prefix. The workflow was not changed. Fork pull requests skip that job.",
     "Doctor exit 0 means settings loaded. It is not execution readiness.",
     "This checkout does not update the desk computer's clone."
@@ -96,9 +98,12 @@
     "src/pumpgrok/risk/engine/core.py",
     "src/pumpgrok/risk/paper_accounting.py",
     "src/pumpgrok/risk/paper_policy.py",
+    "src/pumpgrok/supervisor/scheduler/supervisor.py",
+    "src/pumpgrok/tools/safety/score_report.py",
     "src/pumpgrok/tools/__init__.py",
     "tests/config/test_paper_operator_overlay.py",
     "tests/config/test_settings_surface_characterization.py",
+    "tests/risk/test_deployment_wiring.py",
     "tests/risk/test_paper_accounting.py",
     "tests/risk/test_paper_policy_blocks_entries.py",
     ".receipts/bot-02-risk/paper-only-operator-overlay.json"

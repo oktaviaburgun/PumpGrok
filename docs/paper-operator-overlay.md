@@ -93,15 +93,35 @@ and writes no ledger row:
 The paper adapter file is unchanged. The route is refused before an adapter
 is built.
 
-## Cost model schema
+## Wired while the paper policy is engaged
 
-`[paper_policy.cost_model]` accepts `verified`, `source`, `as_of`,
-`venue_fee_rate_per_side`, `network_cost_virtual_usdc_per_side`,
-`entry_slippage_bps` (max 200), and `stress_exit_haircut_bps`.
-`verified = true` requires every one of those inputs. The example sets
-`verified = false` and leaves the inputs empty, so cost evidence remains
-a data blocker. A test fixture may pass a complete model whose source is
-`TEST DATA synthetic fixture`. That fixture is not venue evidence.
+- `Supervisor._emit_rollover` calls `deployment_day`. At 17:00 UTC that day
+  is the next Asia/Bangkok date. With the policy disengaged the same call
+  keeps the UTC date. Package and live defaults do not engage the policy.
+  The SOL halt helper `utc_day` is unchanged.
+- `run_score_report` calls `_apply_engaged_safety`, which calls
+  `safety_verdict`. Missing and BLIND required checks, including SAFE-4
+  and SAFE-8, force KILL and clear `advisory_blind_checks`. The disengaged
+  scorer keeps the 2026-10-25 advisory exception.
+
+## Cost verification still required
+
+Data stays not ready until `[paper_policy.cost_model]` is complete and
+`verified` is true. Setting that flag requires every field below. This
+change does not look up a venue schedule and does not put numbers in the
+example.
+
+| Field | What has to be supplied |
+|---|---|
+| `source` | Non-empty citation of the schedule or note the numbers came from |
+| `as_of` | Date `YYYY-MM-DD` of that citation |
+| `venue_fee_rate_per_side` | Fraction per side, such as `0.01` for 1 percent |
+| `network_cost_virtual_usdc_per_side` | Virtual USDC per side |
+| `entry_slippage_bps` | Integer from 0 through 200 |
+| `stress_exit_haircut_bps` | Integer valuation haircut; it does not raise the 200 bps fill cap |
+
+A test may load a complete model whose `source` is `TEST DATA synthetic fixture`.
+That source is not venue evidence, and the shipped example does not use it.
 
 ## What stays outside this change
 
@@ -109,10 +129,6 @@ a data blocker. A test fixture may pass a complete model whose source is
 - No market scan, RPC call, paper fill, or live fill.
 - No ledger initialization of E0 or peak.
 - Package paper, dev, and live overlays are unchanged.
-- The supervisor `DailyRollover` emitter still keys UTC. The Bangkok clock
-  lives in the virtual-USDC book. Wiring that emitter is a later step.
-- `safety.score_report` still has its advisory BLIND path. The deployment
-  gate is `safety_verdict` in the virtual-USDC book.
 - `engine/analyzer.py` `CREATOR_SHARE_VETO` remains 0.25.
 - Exit proposals stay at package defaults 30, 120, 35, 3600, and 15.
   Applying them is waiting on a desk-agent decision. Leaving them unapplied
@@ -122,10 +138,8 @@ a data blocker. A test fixture may pass a complete model whose source is
 
 ## Questions for coordinator YJ
 
-- A sourced cost model: source, date, fee rate, network cost, and slippage.
-  The schema can store it. The example does not invent one.
-- Whether the supervisor UTC rollover should call the Bangkok book clock.
-- Whether `safety.score_report` should call `safety_verdict`.
+- The six cost-model fields above, taken from a real schedule. The schema
+  can store them. The example leaves them empty.
 - Whether exit proposals may be applied later.
 - Whether the runtime position cap may later rise from 3 toward the ceiling of 5.
 - Whether pre-migration tokens get a separate policy. The book excludes them.
