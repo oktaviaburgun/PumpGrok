@@ -35,6 +35,7 @@ from pumpgrok.replay.rng import make_rng
 from pumpgrok.risk.alert_channel import build_alert_channel
 from pumpgrok.risk.engine import RiskEngine
 from pumpgrok.risk.killswitch import InflightBarrier, killswitch_file
+from pumpgrok.risk.paper_policy import current_paper_policy
 from pumpgrok.tools.desk._memory import MemoryBank
 from pumpgrok.tools.desk.brief import build_brief_tool
 from pumpgrok.tools.desk.docs_search import build_docs_search_tool
@@ -294,6 +295,12 @@ def ensure_paper_genesis(store: LedgerStore, budget: RiskBudget) -> None:
     """
     if store.get_meta("initial_equity_lamports") is not None:
         return
+    if current_paper_policy().engaged:
+        raise CorruptState(
+            "paper policy is engaged; refusing to write initial_equity_lamports "
+            "(virtual USDC equity is unverified and is not converted to SOL)",
+            paper_policy="equity_unverified",
+        )
     history = store.count()
     if history > 0:
         raise CorruptState(
@@ -331,6 +338,11 @@ def build_operator_registry(
     Returns the registry,
     the ten seat manifests, and the HTTP client the caller must close.
     """
+    if settings.paper_policy.engaged:
+        raise CorruptState(
+            "paper policy is engaged; refusing to build the operator registry",
+            paper_policy="registry_refused",
+        )
     active_clock = clock if clock is not None else WallClock()
     active_seed = seed if seed is not None else settings.replay.seed
     data_dir = Path(data_dir)
@@ -365,6 +377,7 @@ def build_operator_registry(
             state_dir=data_dir,
         ),
         get_reserves=curves.last.get,
+        paper_policy=settings.paper_policy,
     )
     # R62: a missing file is an empty healthy book; a corrupt file quarantines
     # to a degraded book, which refuses buys with reputation_degraded. The degraded marker

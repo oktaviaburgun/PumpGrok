@@ -34,6 +34,7 @@ from pumpgrok.cli.backtest_holdout import (
 )
 from pumpgrok.cli.backtest_paper_gate import _paper_gate, _paper_window, _PaperOutcome
 from pumpgrok.cli.errors import UsageError, _not_implemented, _say
+from pumpgrok.cli.paper_guard import refuse_engaged
 from pumpgrok.cli.wiring import _repo_root
 from pumpgrok.config.settings import ConfigError, Settings
 from pumpgrok.core.idempotency import canonical_json
@@ -334,6 +335,7 @@ def _backtest_verb(args: argparse.Namespace, settings: Settings) -> int:
     it promotion stays ineligible with reason divergence not compared. This
     verb places no paper orders itself.
     """
+    refuse_engaged(settings, "backtest")
     plan = _backtest_plan(args, settings)
     with _run_lock(plan.run_dir):
         harness_result = _run_trials(plan)

@@ -9,6 +9,8 @@ id, or a hard top-5 veto, forces ``verdict_recommendation = KILL``, except
 the SAFE-4/SAFE-8 holder pair stays advisory while no paid RPC provider is
 recorded (amendment 2026-10-25).
 Recommendation only: RISK issues the verdict from the journaled report.
+While the operator paper policy is engaged, ``safety_verdict`` forces KILL
+when a required check is missing or BLIND, including SAFE-4 and SAFE-8.
 
 ``creator`` is caller-supplied (creation event): the mint account carries
 no creator, so without it the deployer check is blind. The creator-share
@@ -17,7 +19,7 @@ veto is armed but dormant while off-chain enrichment is unwired.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
@@ -30,6 +32,8 @@ from pumpgrok.core.errors import DataStale
 from pumpgrok.core.ids import Clock, ambient_correlation
 from pumpgrok.core.side_effect import SideEffect
 from pumpgrok.core.tool import RetryPolicy, Tool, ToolInput, ToolOutput, ToolSpec, tool
+from pumpgrok.risk.paper_accounting import SafetyRow, safety_verdict
+from pumpgrok.risk.paper_policy import current_paper_policy
 from pumpgrok.tools._common import SOLANA_RPC_SOURCE, MintStr, meta_now, utcnow
 from pumpgrok.tools.market.liquidity import LiquidityIn, run_liquidity
 from pumpgrok.tools.onchain.authorities_tool import AuthoritiesIn, run_authorities
@@ -405,6 +409,26 @@ def _score(rows: list[CheckResult]) -> Decimal:
     return max(Decimal(0), score)
 
 
+def _apply_engaged_safety(
+    rows: list[CheckResult],
+    *,
+    verdict: Literal["CLEAR", "CONDITIONAL", "KILL"],
+    advisory_blind_checks: Sequence[str],
+) -> tuple[Literal["CLEAR", "CONDITIONAL", "KILL"], list[str]]:
+    """Force KILL from ``safety_verdict`` while the paper policy is engaged.
+
+    Disengaged and live package paths return the scorer's own verdict and
+    its advisory-BLIND list unchanged.
+    """
+    policy = current_paper_policy()
+    if not policy.engaged or not policy.blind_is_kill:
+        return verdict, list(advisory_blind_checks)
+    strict = safety_verdict(tuple(SafetyRow(id=row.id, status=row.status) for row in rows))
+    if strict == "KILL":
+        return "KILL", []
+    return verdict, list(advisory_blind_checks)
+
+
 def _verdict(
     score: Decimal, forced_kill: bool, active: SafetyThresholds
 ) -> Literal["CLEAR", "CONDITIONAL", "KILL"]:
@@ -446,12 +470,15 @@ async def run_score_report(
         and r.id in REQUIRED_IDS
         and not (advisory_active and r.id in HOLDER_ADVISORY_PAIR)
     ]
-    advisory_blind_checks = [
+    advisory_ids: list[str] = [
         r.id
         for r in rows
         if r.status == "blind" and advisory_active and r.id in HOLDER_ADVISORY_PAIR
     ]
     verdict = _verdict(score, hard_veto or bool(blind_required), active)
+    verdict, advisory_ids = _apply_engaged_safety(
+        rows, verdict=verdict, advisory_blind_checks=advisory_ids
+    )
 
     out = {
         "score": int(score),
@@ -459,7 +486,7 @@ async def run_score_report(
         "hard_veto": hard_veto,
         "checks": [r.model_dump() for r in rows],
         "blind_checks": [r.id for r in rows if r.status == "blind"],
-        "advisory_blind_checks": advisory_blind_checks,
+        "advisory_blind_checks": advisory_ids,
         "evidence": [e.model_dump() for e in evidence],
         "thresholds_used": {k: float(getattr(active, k)) for k in _KNOWN_THRESHOLD_KEYS},
         "meta": meta_now(

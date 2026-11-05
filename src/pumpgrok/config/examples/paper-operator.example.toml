@@ -1,0 +1,66 @@
+# Operator paper overlay. NOT OPERATIONAL. Approves no trade and no fill.
+# Load with PUMPGROK_CONFIG pointing at this file and PUMPGROK_PROFILE=paper
+# (or unset). PUMPGROK_* env still wins over this file.
+#
+# Virtual USDC figures below are the human-fixed inputs. They are not a SOL
+# valuation. paper_equity_sol is omitted on purpose so the package default
+# stays in place and is not treated as 1000 virtual USDC.
+#
+# Exit proposals are omitted on purpose. Package exit defaults stay in force.
+# The user position ceiling is recorded under paper_policy and is not applied.
+# The stricter runtime cap of 3 remains in [risk].
+
+[execution]
+mode = "paper"
+
+[live]
+enabled = false
+
+[risk]
+max_trade_fraction = "0.01"
+max_token_fraction = "0.01"
+daily_loss_halt_fraction = "0.02"
+drawdown_halt_fraction = "0.10"
+max_open_positions = 3
+max_trades_per_day = 10
+liquidity_floor_multiple = 20
+partial_fill_fraction = "0.02"
+
+[limits]
+max_slippage_bps = 200
+daily_loss_basis = "total"
+one_position_per_creator = true
+
+[rpc]
+endpoints = []
+
+[safety.thresholds]
+transfer_tax_hard_fail_pct = 0.0
+transfer_tax_warn_pct = 0.0
+top10_concentration_warn_pct = 20.0
+top10_concentration_fail_pct = 20.0
+liquidity_multiple_min = 20.0
+liquidity_multiple_recommended = 20.0
+lp_lock_min_days = 180.0
+creator_share_veto = 0.10
+top5_share_veto = 0.80
+kill_below_score = 40.0
+conditional_below_score = 70.0
+
+[paper_policy]
+engaged = true
+denomination = "virtual_usdc"
+unit = "virtual_usdc_micro"
+starting_equity_virtual_usdc = "1000"
+max_trade_virtual_usdc = "10"
+user_position_ceiling = 5
+runtime_position_cap = 3
+halt_timezone = "Asia/Bangkok"
+max_slippage_bps = 200
+daily_loss_halt_fraction = "0.02"
+drawdown_halt_fraction = "0.10"
+max_trades_per_day = 10
+blind_is_kill = true
+
+[paper_policy.cost_model]
+verified = false

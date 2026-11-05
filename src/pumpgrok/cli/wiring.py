@@ -15,6 +15,7 @@ from pydantic import ValidationError
 
 from pumpgrok.cli.codes import _TOOLS_HELP, EXIT_OK, EXIT_UNFLATTENED
 from pumpgrok.cli.errors import UsageError, _not_implemented, _say, _tool_error
+from pumpgrok.cli.paper_guard import refuse_engaged
 from pumpgrok.config.settings import Settings, load_settings
 from pumpgrok.contracts.projection import short_to_seat
 from pumpgrok.core.errors import PumpgrokError
@@ -106,6 +107,7 @@ def _run_wired(
     use: Callable[[list[Tool]], Awaitable[int]],
 ) -> int:
     """Run one wired verb: registry build, find (I1), then the verb tail."""
+    refuse_engaged(settings, verb)
     return asyncio.run(_with_tools(verb, seat, settings, capabilities, use))
 
 
@@ -196,6 +198,7 @@ def _tools_schema(tool_id: str) -> int:
 
     async def _schema() -> int:
         settings = load_settings()
+        refuse_engaged(settings, "tools")
         reg, _, client = build_operator_registry(
             data_dir=Path("var") / "desk",
             repo_root=_repo_root(),

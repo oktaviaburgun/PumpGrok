@@ -41,6 +41,7 @@ from pumpgrok.risk.engine.rules import (
 from pumpgrok.risk.engine.steps import _EngineSteps
 from pumpgrok.risk.killswitch import SEAT_RE, FlattenOrder, KillState, KillSwitch
 from pumpgrok.risk.limits import EngineLimits
+from pumpgrok.risk.paper_policy import PaperDeskPolicy, current_paper_policy, entry_blockers
 
 
 class RiskEngine(_EngineSteps):
@@ -70,9 +71,11 @@ class RiskEngine(_EngineSteps):
         observe_only: frozenset[str] = frozenset(),
         scan_kill_verdicts: bool = True,
         reputation: ReputationBook | None = None,
+        paper_policy: PaperDeskPolicy | None = None,
     ) -> None:
         self._store = store
         self._budget = budget
+        self._paper_policy = current_paper_policy() if paper_policy is None else paper_policy
         self._ids = ids
         self._clock = clock
         self._limits = limits if limits is not None else EngineLimits()
@@ -270,6 +273,12 @@ class RiskEngine(_EngineSteps):
     ) -> RiskDecision:
         """Run the R34 steps for one order; first failure wins.
 
+        An engaged operator paper policy refuses the order before any ledger
+        write and before the 19 steps. Blind flatten and slippage above the
+        cap are named. Every other engaged order is
+        ``execution_not_authorized``. A disengaged policy leaves the walk
+        unchanged.
+
         ``exit_reason`` names an exit-rule, ``rug_alert``, ``kill_flatten``,
         ``blind_flatten`` or ``graduated`` sell; those sells skip steps 2-4
         and 9-19. ``creator`` is the candidate mint's creator for the
@@ -280,6 +289,16 @@ class RiskEngine(_EngineSteps):
         fill is refused at the fill, and a sell refuses with ``no_position`` when
         its holding has closed.
         """
+        # Engaged operator policy: refuse the buy before kill-switch I/O, breaker
+        # refresh, or the 19-step walk. Nothing is appended for this refusal.
+        blockers = entry_blockers(
+            self._paper_policy,
+            side=order.side.value,
+            slippage_bps=order.max_slippage_bps,
+            exit_reason=exit_reason,
+        )
+        if blockers:
+            return self._policy_block(order, blockers[0])
         # RISK-004: the alert channel is polled on every check, after env and file are read.
         self._killswitch.absorb_alerts()
         order_hash = order_hash_for(order)
@@ -422,6 +441,20 @@ class RiskEngine(_EngineSteps):
             caps=dict(ctx.caps),
             probe=ctx.probe,
             evaluated=self._evaluated(ctx, None),
+        )
+
+    def _policy_block(self, order: OrderRequest, reason: str) -> RiskDecision:
+        """Bound refusal for an engaged paper policy. The 19 steps are not run."""
+        if not reason:
+            raise RuntimeError("paper policy block requires a reason")
+        return RiskDecision(
+            passed=False,
+            reason=reason,
+            order_hash=order_hash_for(order),
+            decision_id=order.decision_id,
+            approval_id=order.approval_id or None,
+            size_lamports=order.size_lamports,
+            evaluated=[{"id": step, "status": "skip"} for step in STEP_IDS],
         )
 
     def _reject(self, order_hash: str, ctx: _StepCtx, reason: str) -> RiskDecision:
