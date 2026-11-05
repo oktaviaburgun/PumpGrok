@@ -60,7 +60,7 @@ PINNED_SECTION_DIGESTS: dict[str, str] = {
     "ops": "bb1a378d59815ba72e2fc99571cb1e87732b7bee7e14af1e0373344a78679f7a",
     "notify": "c5b4befdfaeb1a71533fbc2011c77862f2774263ac60a16b074a53078c32dc7a",
     "health": "c88a6d6abdcf0ee28c1ae470e1fcec57c4579ab2ea866fce7f9d1f6a02f4cf95",
-    "paper_policy": "96ea7ed906216f992c3f01f4f6c1f0dd7463f96a5e7ca50c7ba7a5172e777484",
+    "paper_policy": "0437451988204555b0f919c33d4475e309d8f6a156fd56048077af955e9c1081",
 }
 
 

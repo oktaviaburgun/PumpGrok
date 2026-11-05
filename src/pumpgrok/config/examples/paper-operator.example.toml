@@ -50,16 +50,17 @@ conditional_below_score = 70.0
 [paper_policy]
 engaged = true
 denomination = "virtual_usdc"
+unit = "virtual_usdc_micro"
 starting_equity_virtual_usdc = "1000"
 max_trade_virtual_usdc = "10"
 user_position_ceiling = 5
 runtime_position_cap = 3
 halt_timezone = "Asia/Bangkok"
 max_slippage_bps = 200
-cost_model_verified = false
-equity_peak_verified = false
-sol_usdc_valuation_present = false
-entries_authorized = false
-exits_applied = false
-blind_flatten_authorized = false
-blind_advisory_exception = false
+daily_loss_halt_fraction = "0.02"
+drawdown_halt_fraction = "0.10"
+max_trades_per_day = 10
+blind_is_kill = true
+
+[paper_policy.cost_model]
+verified = false

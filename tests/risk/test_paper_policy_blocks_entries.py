@@ -19,12 +19,7 @@ from pumpgrok.core.risk_budget import RiskBudget
 from pumpgrok.ledger.store import LedgerStore
 from pumpgrok.replay.clock import FixtureClock
 from pumpgrok.risk.engine import STEP_IDS, RiskEngine
-from pumpgrok.risk.paper_policy import (
-    STANDING_BLOCKERS,
-    PaperDeskPolicy,
-    bind_paper_policy,
-    entry_blockers,
-)
+from pumpgrok.risk.paper_policy import PaperDeskPolicy, bind_paper_policy, entry_blockers
 
 MINT = "So11111111111111111111111111111111111111112"
 
@@ -61,12 +56,15 @@ def _buy(ids: IdFactory, *, slippage: int) -> OrderRequest:
     )
 
 
-def test_standing_blockers_cover_the_open_policy_gaps() -> None:
+def test_execution_boundary_names_slippage_and_stays_unauthorized() -> None:
     policy = _engaged()
-    assert entry_blockers(policy) == STANDING_BLOCKERS
-    assert "slippage_above_cap" not in entry_blockers(policy, slippage_bps=200)
-    assert entry_blockers(policy, slippage_bps=201)[-1] == "slippage_above_cap"
-    assert entry_blockers(policy, side="sell", slippage_bps=500) == ()
+    assert entry_blockers(policy, slippage_bps=200)[0] == "execution_not_authorized"
+    assert "cost_model_unverified" in entry_blockers(policy, slippage_bps=200)
+    assert entry_blockers(policy, slippage_bps=201) == ("slippage_above_cap",)
+    assert entry_blockers(policy, side="sell", slippage_bps=500) == ("slippage_above_cap",)
+    assert entry_blockers(policy, side="sell", slippage_bps=200, exit_reason="blind_flatten") == (
+        "blind_flatten_prohibited",
+    )
     assert entry_blockers(PaperDeskPolicy(), slippage_bps=500) == ()
 
 
@@ -87,11 +85,28 @@ def test_check_refuses_the_buy_without_a_ledger_row(tmp_path: Path) -> None:
         before = store.count()
         decision = engine.check(_buy(ids, slippage=200), seat="bot-04-sniper")
         assert decision.passed is False
-        assert decision.reason == "paper_policy_blocked"
+        assert decision.reason == "execution_not_authorized"
         assert [row["id"] for row in decision.evaluated] == list(STEP_IDS)
         assert [row["status"] for row in decision.evaluated] == ["skip"] * len(STEP_IDS)
         assert store.count() == before == 0
         kinds = [row["type"] for row in store.read(limit=None)]
         assert kinds == []
+        over = engine.check(_buy(ids, slippage=201), seat="bot-04-sniper")
+        assert over.passed is False
+        assert over.reason == "slippage_above_cap"
+        sell = OrderRequest(
+            ticket_id="SOL-20260201-001",
+            mint=MINT,
+            side=Side.SELL,
+            decision_id=ids.ulid(),
+            token_units=1,
+            max_slippage_bps=50,
+            approval_id=f"apr-{ids.ulid()}",
+            correlation_id="paper-policy-test",
+        )
+        flatten = engine.check(sell, exit_reason="blind_flatten")
+        assert flatten.passed is False
+        assert flatten.reason == "blind_flatten_prohibited"
+        assert store.count() == 0
     finally:
         store.close()

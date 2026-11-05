@@ -19,14 +19,11 @@ from pumpgrok.cli.verbs_ops import _live_verb, _verify_verb
 from pumpgrok.cli.verbs_state import _killswitch, _paper, _run, _state, _ticket_verb
 from pumpgrok.config.settings import ConfigError, Settings, load_settings, overlay_path
 from pumpgrok.core.errors import CorruptState
+from pumpgrok.core.units import sol_to_lamports
 from pumpgrok.doctor import doctor_report
 from pumpgrok.ledger.store import LedgerStore
-from pumpgrok.risk.paper_policy import (
-    STANDING_BLOCKERS,
-    PaperDeskPolicy,
-    bind_paper_policy,
-    entry_blockers,
-)
+from pumpgrok.risk.paper_accounting import VIRTUAL_USDC_MICRO, configured_starting_micro
+from pumpgrok.risk.paper_policy import PaperDeskPolicy, bind_paper_policy
 from pumpgrok.tools import build_operator_registry, ensure_paper_genesis
 
 EXAMPLE = (
@@ -75,7 +72,7 @@ def test_disengaged_defaults_do_not_apply_the_operator_policy(
     assert settings.risk.max_open_positions == 3
     assert settings.exits.stop_loss_pct == 30.0
     assert settings.limits.max_slippage_bps == 300
-    assert entry_blockers(settings.paper_policy) == ()
+    assert settings.paper_policy.cost_model.verified is False
     assert doctor_report(settings)[1] == "info  paper_policy=disengaged"
 
 
@@ -122,13 +119,19 @@ def test_engaged_overlay_loads_fail_closed(monkeypatch: pytest.MonkeyPatch) -> N
     assert settings.safety.thresholds.top10_concentration_fail_pct == 20.0
     assert settings.safety.thresholds.creator_share_veto == 0.10
     assert settings.safety.thresholds.liquidity_multiple_min == 20.0
-    assert entry_blockers(settings.paper_policy) == STANDING_BLOCKERS
+    assert settings.paper_policy.cost_model.verified is False
+    starting_micro = configured_starting_micro(settings.paper_policy)
+    assert starting_micro == 1000 * VIRTUAL_USDC_MICRO
+    assert starting_micro != sol_to_lamports(settings.risk.paper_equity_sol)
     report = "\n".join(doctor_report(settings))
+    assert "configuration_ready=yes" in report
+    assert "data_ready=no" in report
+    assert "execution_ready=no" in report
     assert "NOT OPERATIONAL" in report
-    assert "entries=blocked" in report
-    assert "currency_unresolved" in report
     assert "cost_model_unverified" in report
-    assert "equity_peak_unverified" in report
+    assert "equity_not_initialized" in report
+    assert "market_evidence_not_loaded" in report
+    assert "currency_unresolved" not in report
     assert report.splitlines()[-1].startswith("doctor:")
 
 
@@ -197,7 +200,11 @@ def test_looser_positions_daily_loss_equity_and_exits_are_rejected(
     daily = _reject(
         monkeypatch,
         tmp_path,
-        base.replace('daily_loss_halt_fraction = "0.02"', 'daily_loss_halt_fraction = "0.05"'),
+        base.replace(
+            'daily_loss_halt_fraction = "0.02"',
+            'daily_loss_halt_fraction = "0.05"',
+            1,
+        ),
     )
     assert any("daily_loss_halt_fraction" in problem for problem in daily.problems)
     equity = _reject(
@@ -217,9 +224,9 @@ def test_cleared_blockers_and_live_mode_are_rejected(
     cleared = _reject(
         monkeypatch,
         tmp_path,
-        base.replace("cost_model_verified = false", "cost_model_verified = true"),
+        base.replace("verified = false", "verified = true"),
     )
-    assert any("cost_model_verified" in problem for problem in cleared.problems)
+    assert any("cost_model" in problem for problem in cleared.problems)
     monkeypatch.setenv("PUMPGROK_CONFIG", str(EXAMPLE))
     monkeypatch.setenv("PUMPGROK_MODE", "live")
     with pytest.raises(ConfigError) as live_mode:

@@ -273,9 +273,10 @@ class RiskEngine(_EngineSteps):
     ) -> RiskDecision:
         """Run the R34 steps for one order; first failure wins.
 
-        An engaged operator paper policy refuses buys before any ledger write
-        and before the 19 steps. The refusal is ``paper_policy_blocked``.
-        Sells are not given that reason. A disengaged policy leaves the walk
+        An engaged operator paper policy refuses the order before any ledger
+        write and before the 19 steps. Blind flatten and slippage above the
+        cap are named. Every other engaged order is
+        ``execution_not_authorized``. A disengaged policy leaves the walk
         unchanged.
 
         ``exit_reason`` names an exit-rule, ``rug_alert``, ``kill_flatten``,
@@ -294,9 +295,10 @@ class RiskEngine(_EngineSteps):
             self._paper_policy,
             side=order.side.value,
             slippage_bps=order.max_slippage_bps,
+            exit_reason=exit_reason,
         )
         if blockers:
-            return self._policy_block(order, blockers)
+            return self._policy_block(order, blockers[0])
         # RISK-004: the alert channel is polled on every check, after env and file are read.
         self._killswitch.absorb_alerts()
         order_hash = order_hash_for(order)
@@ -441,13 +443,13 @@ class RiskEngine(_EngineSteps):
             evaluated=self._evaluated(ctx, None),
         )
 
-    def _policy_block(self, order: OrderRequest, blockers: tuple[str, ...]) -> RiskDecision:
+    def _policy_block(self, order: OrderRequest, reason: str) -> RiskDecision:
         """Bound refusal for an engaged paper policy. The 19 steps are not run."""
-        if not blockers:
-            raise RuntimeError("paper policy block requires at least one blocker")
+        if not reason:
+            raise RuntimeError("paper policy block requires a reason")
         return RiskDecision(
             passed=False,
-            reason="paper_policy_blocked",
+            reason=reason,
             order_hash=order_hash_for(order),
             decision_id=order.decision_id,
             approval_id=order.approval_id or None,
